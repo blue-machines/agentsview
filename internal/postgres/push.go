@@ -1365,7 +1365,7 @@ func (s *Sync) pushBatchAttempt(
 	comparisons := (*pushMessageComparison)(nil)
 	if preloadComparisons && len(sessionIDs) > 0 {
 		comparisonsBatch, err := readPushSessionMessageComparisons(
-			ctx, tx, sessionIDs, localCounts,
+			ctx, tx, sessionIDs, localCounts, true,
 		)
 		if err != nil {
 			_ = tx.Rollback()
@@ -3097,7 +3097,7 @@ func (s *Sync) pushMessages(
 
 	if !full && comparisons == nil {
 		comparisons, err = readPushSessionMessageComparisons(ctx, tx, []string{sessionID},
-			map[string]db.MessageContentAggregate{sessionID: {Count: localCount}},
+			map[string]db.MessageContentAggregate{sessionID: {Count: localCount}}, false,
 		)
 		if err != nil {
 			return 0, fmt.Errorf("reading pg message comparison: %w", err)
