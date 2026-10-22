@@ -400,7 +400,7 @@ func TestCursorProviderFingerprintSkipsOversizedTranscriptHash(t *testing.T) {
 	require.NoError(t, os.MkdirAll(transcriptsDir, 0o755))
 	file, err := os.Create(sourcePath)
 	require.NoError(t, err)
-	require.NoError(t, file.Truncate(maxCursorTranscriptSize+1))
+	require.NoError(t, file.Truncate(DefaultMaxCursorTranscriptSize+1))
 	require.NoError(t, file.Close())
 
 	provider, ok := NewProvider(AgentCursor, ProviderConfig{
@@ -415,16 +415,56 @@ func TestCursorProviderFingerprintSkipsOversizedTranscriptHash(t *testing.T) {
 	fingerprint, err := provider.Fingerprint(t.Context(), sources[0])
 	require.NoError(t, err)
 	assert.Equal(t, sourcePath, fingerprint.Key)
-	assert.Equal(t, int64(maxCursorTranscriptSize+1), fingerprint.Size)
+	assert.Equal(t, int64(DefaultMaxCursorTranscriptSize+1), fingerprint.Size)
 	assert.Positive(t, fingerprint.MTimeNS)
 	assert.Empty(t, fingerprint.Hash)
 
-	_, err = provider.Parse(t.Context(), ParseRequest{
+	outcome, err := provider.Parse(t.Context(), ParseRequest{
 		Source:      sources[0],
 		Fingerprint: fingerprint,
 	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "file too large")
+	require.NoError(t, err, "an oversize file must not return an error")
+	assert.Equal(t, SkipNoSession, outcome.SkipReason,
+		"an oversize Cursor transcript is a graceful skip, not a sync failure")
+}
+
+func TestCursorProviderConfigurableMaxTranscriptSize(t *testing.T) {
+	root := t.TempDir()
+	projectDir := "Users-fiona-Documents-demo"
+	transcriptsDir := filepath.Join(root, projectDir, "agent-transcripts")
+	sourcePath := filepath.Join(transcriptsDir, "big.jsonl")
+	require.NoError(t, os.MkdirAll(transcriptsDir, 0o755))
+	content := "{\"role\":\"user\",\"message\":{\"content\":\"hello\"}}\n"
+	require.NoError(t, os.WriteFile(sourcePath, []byte(content), 0o644))
+
+	provider, ok := NewProvider(AgentCursor, ProviderConfig{
+		Roots:             []string{root},
+		Machine:           "devbox",
+		MaxTranscriptSize: 10,
+	})
+	require.True(t, ok)
+	sources, err := provider.Discover(t.Context())
+	require.NoError(t, err)
+	require.Len(t, sources, 1)
+
+	outcome, err := provider.Parse(t.Context(), ParseRequest{Source: sources[0]})
+	require.NoError(t, err, "an oversize file at a configured limit skips gracefully")
+	assert.Equal(t, SkipNoSession, outcome.SkipReason)
+
+	provider2, ok := NewProvider(AgentCursor, ProviderConfig{
+		Roots:             []string{root},
+		Machine:           "devbox",
+		MaxTranscriptSize: 1 << 20,
+	})
+	require.True(t, ok)
+	sources2, err := provider2.Discover(t.Context())
+	require.NoError(t, err)
+	require.Len(t, sources2, 1)
+
+	outcome2, err := provider2.Parse(t.Context(), ParseRequest{Source: sources2[0]})
+	require.NoError(t, err)
+	assert.Equal(t, SkipNone, outcome2.SkipReason, "a file within the configured limit is parsed")
+	require.Len(t, outcome2.Results, 1)
 }
 
 func TestCursorPathFromSourceMaterializedFile(t *testing.T) {

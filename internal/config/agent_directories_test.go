@@ -149,6 +149,29 @@ func TestAgentTableMigrationConflictPreservesFile(t *testing.T) {
 	assert.Equal(t, original, string(after))
 }
 
+func TestAgentMaxTranscriptSize(t *testing.T) {
+	dir := setupTestEnv(t)
+	writeConfig(t, dir, map[string]any{
+		"agents": map[string]any{
+			"cursor": map[string]any{
+				"max_transcript_size": int64(50 << 20),
+			},
+		},
+	})
+	cfg, err := LoadMinimal()
+	require.NoError(t, err)
+	require.Equal(t, int64(50<<20), cfg.MaxTranscriptSizes[parser.AgentCursor])
+}
+
+func TestAgentMaxTranscriptSizeRejectsNegative(t *testing.T) {
+	dir := setupTestEnv(t)
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dir, "config.toml"),
+		[]byte("[agents.cursor]\nmax_transcript_size = -1\n"), 0o600))
+	_, err := LoadMinimal()
+	require.ErrorContains(t, err, "max_transcript_size")
+}
+
 func TestAgentTablesRejectInvalidProviders(t *testing.T) {
 	for _, tt := range []struct {
 		name string

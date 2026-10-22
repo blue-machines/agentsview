@@ -68,6 +68,16 @@ func (c *Config) applyAgentDirectories(value any) error {
 			c.AgentDirs[def.Type] = entry.Dirs
 			c.agentDirSource[def.Type] = dirFile
 		}
+		if raw, exists := table["max_transcript_size"]; exists {
+			size, ok := tomlInt64(raw)
+			if !ok || size < 0 {
+				return fmt.Errorf("agents.%s.max_transcript_size: expected a positive integer", name)
+			}
+			if c.MaxTranscriptSizes == nil {
+				c.MaxTranscriptSizes = make(map[parser.AgentType]int64)
+			}
+			c.MaxTranscriptSizes[def.Type] = size
+		}
 	}
 	return nil
 }
@@ -89,6 +99,20 @@ func agentDirectoryArray(key string, value any) []string {
 		values = append(values, text)
 	}
 	return values
+}
+
+func tomlInt64(v any) (int64, bool) {
+	switch n := v.(type) {
+	case int64:
+		return n, true
+	case int:
+		return int64(n), true
+	case float64:
+		if n == float64(int64(n)) {
+			return int64(n), true
+		}
+	}
+	return 0, false
 }
 
 func setAgentHomes(config map[string]any, homes map[parser.AgentType][]string) error {

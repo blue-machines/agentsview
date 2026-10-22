@@ -978,6 +978,9 @@ type Config struct {
 	// roots during resolution and is additive to every other root source.
 	agentHomes map[parser.AgentType][]string
 
+	// MaxTranscriptSizes holds per-agent transcript size caps from config.
+	MaxTranscriptSizes map[parser.AgentType]int64
+
 	// agentDirSource tracks how each agent's dirs were
 	// set so loadFile doesn't override env-set values.
 	agentDirSource map[parser.AgentType]dirSource
@@ -1094,7 +1097,13 @@ func (c Config) ResolveDirs(agent parser.AgentType) []string {
 func (c Config) LocalProviderFactories() []parser.ProviderFactory {
 	factories := parser.ProviderFactories()
 	for i, factory := range factories {
-		factories[i] = parser.ConfigureProviderFactory(factory, c.ProviderMetadata[factory.Definition().Type])
+		agent := factory.Definition().Type
+		if limit, ok := c.MaxTranscriptSizes[agent]; ok && limit > 0 {
+			if setter, supports := factory.(interface{ SetMaxTranscriptSize(int64) }); supports {
+				setter.SetMaxTranscriptSize(limit)
+			}
+		}
+		factories[i] = parser.ConfigureProviderFactory(factory, c.ProviderMetadata[agent])
 	}
 	return slices.DeleteFunc(factories, func(factory parser.ProviderFactory) bool {
 		return c.AgentDisabled(factory.Definition().Type)

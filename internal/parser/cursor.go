@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"io"
+	"log"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -16,28 +17,26 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-// maxCursorTranscriptSize is the maximum transcript file size
-// we'll read into memory. Cursor transcripts are typically
-// under 500 KB; 10 MB provides generous headroom.
-const maxCursorTranscriptSize = 10 << 20
+// DefaultMaxCursorTranscriptSize is the default maximum transcript file size
+// read into memory. Cursor transcripts are typically under 500 KB; 10 MB
+// provides generous headroom. Override with [agents.cursor] max_transcript_size.
+const DefaultMaxCursorTranscriptSize = 10 << 20
 
 // parseSession parses a Cursor agent transcript file. Transcripts are plain
 // text with "user:" and "assistant:" role markers, tool calls, and thinking
-// blocks.
+// blocks. An oversize file is skipped with a nil session and no error so
+// the sync pass does not treat it as a failure.
 func (p *cursorProvider) parseSession(
 	path, project, cwd, machine string,
 ) (*ParsedSession, []ParsedMessage, error) {
-	// Open with O_NOFOLLOW (Unix) to reject symlinks at the
-	// final path component, closing the TOCTOU window between
-	// discovery validation and file read.
+	limit := p.maxTranscriptSize()
+
 	f, err := openNoFollow(path)
 	if err != nil {
 		return nil, nil, fmt.Errorf("open %s: %w", path, err)
 	}
 	defer f.Close()
 
-	// Use Fstat on the open fd — this reflects the actual
-	// opened file, not whatever the path currently points to.
 	info, err := f.Stat()
 	if err != nil {
 		return nil, nil, fmt.Errorf("stat %s: %w", path, err)
@@ -48,20 +47,15 @@ func (p *cursorProvider) parseSession(
 		)
 	}
 
-	// Use LimitReader to enforce the size cap even if the
-	// file grows after Fstat. Read one extra byte so we can
-	// detect truncation.
 	data, err := io.ReadAll(
-		io.LimitReader(f, maxCursorTranscriptSize+1),
+		io.LimitReader(f, limit+1),
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("read %s: %w", path, err)
 	}
-	if int64(len(data)) > maxCursorTranscriptSize {
-		return nil, nil, fmt.Errorf(
-			"skip %s: file too large (read %d bytes, max %d)",
-			path, len(data), maxCursorTranscriptSize,
-		)
+	if int64(len(data)) > limit {
+		log.Printf("skip %s: file too large (%d bytes, max %d)", path, info.Size(), limit)
+		return nil, nil, nil
 	}
 
 	text := string(data)
