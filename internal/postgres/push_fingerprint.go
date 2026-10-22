@@ -324,10 +324,20 @@ func readPushSessionMessageComparisons(
 		if err := loadPushMessageAggregates(ctx, tx, chunk, comparisons.MessageAggregates); err != nil {
 			return nil, err
 		}
+		usageIDs := make([]string, 0, len(chunk))
 		eligible := make([]string, 0, len(chunk))
 		for _, id := range chunk {
-			if count := localCounts[id].Count; count > 0 && comparisons.MessageAggregates[id] == count {
+			if count, prepared := localCounts[id]; prepared && count.Count == comparisons.MessageAggregates[id] {
+				usageIDs = append(usageIDs, id)
+				comparisons.UsageEventFingerprint[id] = ""
+			}
+			if comparisons.MessageAggregates[id] > 0 {
 				eligible = append(eligible, id)
+			}
+		}
+		if len(usageIDs) > 0 {
+			if err := loadPushUsageEventFingerprints(ctx, tx, usageIDs, comparisons.UsageEventFingerprint); err != nil {
+				return nil, err
 			}
 		}
 		chunk = eligible
@@ -361,11 +371,6 @@ func readPushSessionMessageComparisons(
 		}
 		if err := loadPushToolResultEventFingerprints(
 			ctx, tx, chunk, comparisons.ToolResultFingerprint,
-		); err != nil {
-			return nil, err
-		}
-		if err := loadPushUsageEventFingerprints(
-			ctx, tx, chunk, comparisons.UsageEventFingerprint,
 		); err != nil {
 			return nil, err
 		}
@@ -940,32 +945,4 @@ func (c *pushMessageComparison) messageFields(id string) db.MessageComparisonFie
 		ContentHash: c.MessageContentHash[id], RoleTime: c.MessageRoleTime[id], Flags: c.MessageFlags[id],
 		Token: c.MessageTokenFingerprint[id], ToolCalls: c.ToolCallFingerprint[id], ToolResults: c.ToolResultFingerprint[id],
 	}
-}
-
-// pushTranscriptMatches consumes the remote streams from one local read view.
-func pushTranscriptMatches(ctx context.Context, snapshot *db.MessageSnapshot, id string, remote *pushMessageComparison) (bool, error) {
-	fields := remote.messageFields(id)
-	streams := []*string{&fields.ContentHash, &fields.RoleTime, &fields.Flags, &fields.Token, &fields.ToolCalls, &fields.ToolResults}
-	for start := 0; ; {
-		messages, err := snapshot.GetMessages(ctx, id, start, db.MaxMessageLimit, true)
-		if err != nil {
-			return false, err
-		}
-		if len(messages) == 0 {
-			break
-		}
-		for _, message := range messages {
-			row := db.MessageComparisonRow(message, pgPushTimestampFingerprintText)
-			fragments := []string{row.ContentHash, row.RoleTime, row.Flags, row.Token, row.ToolCalls, row.ToolResults}
-			for i, fragment := range fragments {
-				rest, ok := strings.CutPrefix(*streams[i], fragment)
-				if !ok {
-					return false, nil
-				}
-				*streams[i] = rest
-			}
-		}
-		start = messages[len(messages)-1].Ordinal + 1
-	}
-	return fields == (db.MessageComparisonFields{}), nil
 }
