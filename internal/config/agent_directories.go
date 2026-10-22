@@ -71,11 +71,13 @@ func (c *Config) applyAgentDirectories(value any) error {
 		if raw, exists := table["max_transcript_size"]; exists {
 			size, ok := tomlInt64(raw)
 			if !ok || size < 0 {
-				return fmt.Errorf("agents.%s.max_transcript_size: expected a positive integer", name)
+				return fmt.Errorf("agents.%s.max_transcript_size: expected a non-negative integer (0 = unlimited)", name)
 			}
 			if c.MaxTranscriptSizes == nil {
 				c.MaxTranscriptSizes = make(map[parser.AgentType]int64)
 			}
+			// Store the value as-is; 0 means unlimited. Distinguish
+			// "explicitly set to 0" from "not configured" via map presence.
 			c.MaxTranscriptSizes[def.Type] = size
 		}
 	}

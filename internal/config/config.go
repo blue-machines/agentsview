@@ -1098,7 +1098,7 @@ func (c Config) LocalProviderFactories() []parser.ProviderFactory {
 	factories := parser.ProviderFactories()
 	for i, factory := range factories {
 		agent := factory.Definition().Type
-		if limit, ok := c.MaxTranscriptSizes[agent]; ok && limit > 0 {
+		if limit, ok := c.MaxTranscriptSizes[agent]; ok {
 			if setter, supports := factory.(interface{ SetMaxTranscriptSize(int64) }); supports {
 				setter.SetMaxTranscriptSize(limit)
 			}

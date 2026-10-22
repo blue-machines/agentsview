@@ -438,9 +438,10 @@ func TestCursorProviderConfigurableMaxTranscriptSize(t *testing.T) {
 	require.NoError(t, os.WriteFile(sourcePath, []byte(content), 0o644))
 
 	provider, ok := NewProvider(AgentCursor, ProviderConfig{
-		Roots:             []string{root},
-		Machine:           "devbox",
-		MaxTranscriptSize: 10,
+		Roots:                []string{root},
+		Machine:              "devbox",
+		MaxTranscriptSize:    10,
+		MaxTranscriptSizeSet: true,
 	})
 	require.True(t, ok)
 	sources, err := provider.Discover(t.Context())
@@ -452,9 +453,10 @@ func TestCursorProviderConfigurableMaxTranscriptSize(t *testing.T) {
 	assert.Equal(t, SkipNoSession, outcome.SkipReason)
 
 	provider2, ok := NewProvider(AgentCursor, ProviderConfig{
-		Roots:             []string{root},
-		Machine:           "devbox",
-		MaxTranscriptSize: 1 << 20,
+		Roots:                []string{root},
+		Machine:              "devbox",
+		MaxTranscriptSize:    1 << 20,
+		MaxTranscriptSizeSet: true,
 	})
 	require.True(t, ok)
 	sources2, err := provider2.Discover(t.Context())
@@ -465,6 +467,39 @@ func TestCursorProviderConfigurableMaxTranscriptSize(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, SkipNone, outcome2.SkipReason, "a file within the configured limit is parsed")
 	require.Len(t, outcome2.Results, 1)
+}
+
+func TestCursorProviderUnlimitedTranscriptSize(t *testing.T) {
+	root := t.TempDir()
+	projectDir := "Users-fiona-Documents-demo"
+	transcriptsDir := filepath.Join(root, projectDir, "agent-transcripts")
+	sourcePath := filepath.Join(transcriptsDir, "large.jsonl")
+	require.NoError(t, os.MkdirAll(transcriptsDir, 0o755))
+	content := "{\"role\":\"user\",\"message\":{\"content\":\"hello\"}}\n"
+	require.NoError(t, os.WriteFile(sourcePath, []byte(content), 0o644))
+
+	provider, ok := NewProvider(AgentCursor, ProviderConfig{
+		Roots:                []string{root},
+		Machine:              "devbox",
+		MaxTranscriptSize:    0,
+		MaxTranscriptSizeSet: true,
+	})
+	require.True(t, ok)
+	sources, err := provider.Discover(t.Context())
+	require.NoError(t, err)
+	require.Len(t, sources, 1)
+
+	fingerprint, err := provider.Fingerprint(t.Context(), sources[0])
+	require.NoError(t, err)
+	assert.NotEmpty(t, fingerprint.Hash, "unlimited mode must hash every file")
+
+	outcome, err := provider.Parse(t.Context(), ParseRequest{
+		Source:      sources[0],
+		Fingerprint: fingerprint,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, SkipNone, outcome.SkipReason)
+	require.Len(t, outcome.Results, 1)
 }
 
 func TestCursorPathFromSourceMaterializedFile(t *testing.T) {

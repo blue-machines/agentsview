@@ -25,7 +25,8 @@ const DefaultMaxCursorTranscriptSize = 10 << 20
 // parseSession parses a Cursor agent transcript file. Transcripts are plain
 // text with "user:" and "assistant:" role markers, tool calls, and thinking
 // blocks. An oversize file is skipped with a nil session and no error so
-// the sync pass does not treat it as a failure.
+// the sync pass does not treat it as a failure. A zero or negative limit
+// means unlimited.
 func (p *cursorProvider) parseSession(
 	path, project, cwd, machine string,
 ) (*ParsedSession, []ParsedMessage, error) {
@@ -47,13 +48,15 @@ func (p *cursorProvider) parseSession(
 		)
 	}
 
-	data, err := io.ReadAll(
-		io.LimitReader(f, limit+1),
-	)
+	var reader io.Reader = f
+	if limit > 0 {
+		reader = io.LimitReader(f, limit+1)
+	}
+	data, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, nil, fmt.Errorf("read %s: %w", path, err)
 	}
-	if int64(len(data)) > limit {
+	if limit > 0 && int64(len(data)) > limit {
 		log.Printf("skip %s: file too large (%d bytes, max %d)", path, info.Size(), limit)
 		return nil, nil, nil
 	}

@@ -426,5 +426,6 @@ func workerEngineConfig(cfg config.Config) sync.EngineConfig {
 		ToolResultImages:        cfg.ToolResultImages,
 		AssetsDir:               filepath.Join(cfg.DataDir, "assets"),
 		ArchiveContent:          cfg.ArchiveContent,
+		MaxTranscriptSizes:      cfg.MaxTranscriptSizes,
 	}
 }

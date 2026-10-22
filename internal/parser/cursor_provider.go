@@ -19,9 +19,10 @@ var (
 )
 
 type cursorProviderFactory struct {
-	def               AgentDef
-	storeIndex        *cursorStoreIndex
-	maxTranscriptSize int64
+	def                  AgentDef
+	storeIndex           *cursorStoreIndex
+	maxTranscriptSize    int64
+	maxTranscriptSizeSet bool
 }
 
 func newCursorProviderFactory(def AgentDef) ProviderFactory {
@@ -32,9 +33,10 @@ func newCursorProviderFactory(def AgentDef) ProviderFactory {
 }
 
 // SetMaxTranscriptSize overrides the default transcript size cap for
-// providers this factory creates. Zero restores the default.
+// providers this factory creates. Zero means unlimited.
 func (f *cursorProviderFactory) SetMaxTranscriptSize(n int64) {
 	f.maxTranscriptSize = n
+	f.maxTranscriptSizeSet = true
 }
 
 func (f *cursorProviderFactory) Definition() AgentDef {
@@ -47,8 +49,9 @@ func (f *cursorProviderFactory) Capabilities() Capabilities {
 
 func (f *cursorProviderFactory) NewProvider(cfg ProviderConfig) Provider {
 	cfg = cfg.Clone()
-	if cfg.MaxTranscriptSize == 0 && f.maxTranscriptSize > 0 {
+	if !cfg.MaxTranscriptSizeSet && f.maxTranscriptSizeSet {
 		cfg.MaxTranscriptSize = f.maxTranscriptSize
+		cfg.MaxTranscriptSizeSet = true
 	}
 	sources := newCursorSourceSetWithConfig(cfg)
 	sources.storeIndex = f.storeIndex
@@ -232,7 +235,7 @@ func newCursorSourceSetWithConfig(cfg ProviderConfig) cursorSourceSet {
 			s.remoteRoots[filepath.Clean(root)] = true
 		}
 	}
-	if cfg.MaxTranscriptSize > 0 {
+	if cfg.MaxTranscriptSizeSet {
 		s.maxTranscriptSize = cfg.MaxTranscriptSize
 	}
 	return s
@@ -944,7 +947,7 @@ func (s cursorSourceSet) Fingerprint(
 		return SourceFingerprint{}, fmt.Errorf("stat %s: source is a directory", path)
 	}
 	hash := ""
-	if info.Size() <= s.maxTranscriptSize {
+	if s.maxTranscriptSize <= 0 || info.Size() <= s.maxTranscriptSize {
 		hash, err = hashJSONLSourceFile(path)
 		if err != nil {
 			return SourceFingerprint{}, err

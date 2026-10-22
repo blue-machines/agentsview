@@ -443,6 +443,7 @@ func ensureFreshData(
 			ScanProtectedPaths: appCfg.ScanProtectedPaths,
 			Machine:            appCfg.InstallationID,
 			ArchiveContent:     appCfg.ArchiveContent,
+			MaxTranscriptSizes: appCfg.MaxTranscriptSizes,
 		})
 		defer engine.Close()
 		fmt.Fprintln(os.Stderr,
@@ -472,6 +473,7 @@ func ensureFreshData(
 		ScanProtectedPaths: appCfg.ScanProtectedPaths,
 		Machine:            appCfg.InstallationID,
 		ArchiveContent:     appCfg.ArchiveContent,
+		MaxTranscriptSizes: appCfg.MaxTranscriptSizes,
 	})
 	defer engine.Close()
 

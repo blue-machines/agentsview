@@ -373,6 +373,7 @@ func runServe(ctx context.Context, cfg config.Config, opts serveOptions, restart
 			BlockedResultCategories: cfg.ResultContentBlockedCategories,
 			ArchiveContent:          cfg.ArchiveContent,
 			FrictionEnabled:         cfg.Friction.Enabled,
+			MaxTranscriptSizes:      cfg.MaxTranscriptSizes,
 			Emitter:                 emitter,
 			DeferStartupMaintenance: deferStartupMaintenance(
 				opts.SkipInitialSync || startupRebuild, workerSyncDone,
