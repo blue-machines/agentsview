@@ -563,7 +563,10 @@ func (s *Sync) pushWithOptions(
 	}
 	reportPrepare(0)
 	prepared := 0
-	localCounts := make(map[string]db.MessageContentAggregate, len(sessionByID))
+	var localCounts map[string]db.MessageContentAggregate
+	if !full {
+		localCounts = make(map[string]db.MessageContentAggregate, len(sessionByID))
+	}
 	candidateIDs := mapKeys(sessionByID)
 	for start := 0; start < len(candidateIDs); start += pushComparisonBatchSize {
 		end := min(start+pushComparisonBatchSize, len(candidateIDs))
@@ -572,7 +575,9 @@ func (s *Sync) pushWithOptions(
 		if err != nil {
 			return result, err
 		}
-		maps.Copy(localCounts, depState.contentAgg)
+		if !full {
+			maps.Copy(localCounts, depState.contentAgg)
+		}
 		for _, id := range chunk {
 			usageFP, usageKnown := usageFingerprints[id]
 			dependencyFP, err := depState.dependencyFingerprint(
