@@ -3115,7 +3115,7 @@ func (s *Sync) pushMessages(
 		}
 	}
 
-	if !full && comparisons.MessageAggregates[sessionID] == localCount && localCount > 0 {
+	if !full && comparisons != nil && comparisons.MessageAggregates[sessionID] == localCount && localCount > 0 {
 		matches, err := pushTranscriptMatches(ctx, snapshot, sessionID, comparisons)
 		if err != nil {
 			return 0, err
