@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"database/sql"
 	"maps"
 	"os"
 	"path/filepath"
@@ -197,4 +198,86 @@ func TestCodexProvidersKeepIndependentMetadata(t *testing.T) {
 		require.Len(t, result.Results, 1)
 		assert.Equal(t, tc.title, result.Results[0].Result.Session.SessionName)
 	}
+}
+
+func createCodexStateDB(t *testing.T, home string, threads map[string]string) string {
+	t.Helper()
+	dbPath := filepath.Join(home, codexStateDBFilename)
+	conn, err := sql.Open("sqlite3", dbPath)
+	require.NoError(t, err)
+	_, err = conn.Exec(`CREATE TABLE threads (
+		id TEXT PRIMARY KEY,
+		title TEXT,
+		rollout_path TEXT,
+		cwd TEXT,
+		created_at TEXT,
+		updated_at TEXT
+	)`)
+	require.NoError(t, err)
+	for id, title := range threads {
+		_, err = conn.Exec(`INSERT INTO threads (id, title) VALUES (?, ?)`, id, title)
+		require.NoError(t, err)
+	}
+	require.NoError(t, conn.Close())
+	return dbPath
+}
+
+func TestCodexThreadNameFallsBackToStateDB(t *testing.T) {
+	home := t.TempDir()
+	sessionsDir := filepath.Join(home, "sessions")
+	require.NoError(t, os.MkdirAll(sessionsDir, 0o755))
+	metadata := CodexMetadata{roots: map[string][]string{sessionsDir: {home}}}
+
+	threadID := "019f0000-0000-7000-8000-000000000001"
+	session := filepath.Join(sessionsDir, "2026", "09", "03",
+		"rollout-2026-09-03T10-00-00-"+threadID+".jsonl")
+
+	createCodexStateDB(t, home, map[string]string{
+		threadID: "Title from state DB",
+	})
+
+	name, ok, err := metadata.ReadThreadName(session, threadID)
+	require.NoError(t, err)
+	assert.True(t, ok, "state_5.sqlite must provide a title when session_index.jsonl is absent")
+	assert.Equal(t, "Title from state DB", name)
+}
+
+func TestCodexThreadNameIndexWinsOverStateDB(t *testing.T) {
+	home := t.TempDir()
+	sessionsDir := filepath.Join(home, "sessions")
+	require.NoError(t, os.MkdirAll(sessionsDir, 0o755))
+	metadata := CodexMetadata{roots: map[string][]string{sessionsDir: {home}}}
+
+	threadID := "019f0000-0000-7000-8000-000000000001"
+	session := filepath.Join(sessionsDir, "2026", "09", "03",
+		"rollout-2026-09-03T10-00-00-"+threadID+".jsonl")
+
+	createCodexStateDB(t, home, map[string]string{
+		threadID: "Title from state DB",
+	})
+	writeIndex(t, home,
+		`{"id":"`+threadID+`","thread_name":"Title from index"}`+"\n",
+		time.Now())
+
+	name, ok, err := metadata.ReadThreadName(session, threadID)
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, "Title from index", name,
+		"session_index.jsonl must take priority over state_5.sqlite")
+}
+
+func TestCodexThreadNameMissingStateDBReturnsEmpty(t *testing.T) {
+	home := t.TempDir()
+	sessionsDir := filepath.Join(home, "sessions")
+	require.NoError(t, os.MkdirAll(sessionsDir, 0o755))
+	metadata := CodexMetadata{roots: map[string][]string{sessionsDir: {home}}}
+
+	threadID := "019f0000-0000-7000-8000-000000000001"
+	session := filepath.Join(sessionsDir, "2026", "09", "03",
+		"rollout-2026-09-03T10-00-00-"+threadID+".jsonl")
+
+	name, ok, err := metadata.ReadThreadName(session, threadID)
+	require.NoError(t, err)
+	assert.False(t, ok)
+	assert.Empty(t, name)
 }

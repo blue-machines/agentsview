@@ -103,19 +103,30 @@ func (m CodexMetadata) ReadThreadName(
 	if strings.TrimSpace(sessionID) == "" {
 		return "", false, nil
 	}
-	indexPaths := m.IndexPaths(sessionPath)
-	if len(indexPaths) == 0 {
+	threadID := CodexThreadIDFromSessionKey(sessionID)
+	root := codexSessionRootForIndex(sessionPath)
+	if root == "" {
 		return "", false, nil
+	}
+	dirs := m.dirs(root)
+
+	indexPaths := make([]string, 0, len(dirs))
+	for _, dir := range dirs {
+		indexPaths = append(indexPaths, filepath.Join(dir, CodexSessionIndexFilename))
 	}
 	titles, err := loadCodexSessionIndexes(indexPaths)
-	if errors.Is(err, os.ErrNotExist) {
-		return "", false, nil
-	}
-	if err != nil {
+	if err == nil {
+		if title, ok := titles[threadID]; ok {
+			return strings.TrimSpace(title), true, nil
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
 		return "", false, err
 	}
-	title, ok := titles[CodexThreadIDFromSessionKey(sessionID)]
-	return strings.TrimSpace(title), ok, nil
+
+	if title, ok := codexReadThreadTitleFromState(codexStateTitlePaths(dirs), threadID); ok {
+		return title, true, nil
+	}
+	return "", false, nil
 }
 
 func (m CodexMetadata) Verify(sessionPath string) error {
@@ -131,10 +142,17 @@ func (m CodexMetadata) Verify(sessionPath string) error {
 }
 
 func (m CodexMetadata) EffectiveMtime(sessionPath string, fileMtime int64) int64 {
-	for _, idxPath := range m.IndexPaths(sessionPath) {
-		if si, err := os.Stat(idxPath); err == nil {
-			if idxMtime := si.ModTime().UnixNano(); idxMtime > fileMtime {
-				fileMtime = idxMtime
+	root := codexSessionRootForIndex(sessionPath)
+	if root == "" {
+		return fileMtime
+	}
+	dirs := m.dirs(root)
+	for _, dir := range dirs {
+		for _, name := range []string{CodexSessionIndexFilename, codexStateDBFilename} {
+			if si, err := os.Stat(filepath.Join(dir, name)); err == nil {
+				if t := si.ModTime().UnixNano(); t > fileMtime {
+					fileMtime = t
+				}
 			}
 		}
 	}
