@@ -414,17 +414,8 @@ func openWorkerWriteDB(ctx context.Context, cfg config.Config, progress db.OpenP
 // workerEngineConfig mirrors the sync.EngineConfig literal in runServe minus the
 // daemon-only callbacks (emitter, watcher reconciliation, deferred maintenance).
 func workerEngineConfig(cfg config.Config) sync.EngineConfig {
-	return sync.EngineConfig{
-		AgentDirs:               cfg.AgentDirs,
-		SourceMachines:          cfg.SourceMachines,
-		ProviderMetadata:        cfg.ProviderMetadata,
-		DisabledAgents:          cfg.DisabledAgents,
-		IncludeCwdPrefixes:      cfg.SyncIncludeCwdPrefixes,
-		ScanProtectedPaths:      cfg.ScanProtectedPaths,
-		Machine:                 cfg.InstallationID,
-		BlockedResultCategories: cfg.ResultContentBlockedCategories,
-		ToolResultImages:        cfg.ToolResultImages,
-		AssetsDir:               filepath.Join(cfg.DataDir, "assets"),
-		ArchiveContent:          cfg.ArchiveContent,
-	}
+	ec := baseEngineConfig(cfg)
+	ec.ToolResultImages = cfg.ToolResultImages
+	ec.AssetsDir = filepath.Join(cfg.DataDir, "assets")
+	return ec
 }

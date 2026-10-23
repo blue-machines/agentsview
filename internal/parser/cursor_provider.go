@@ -19,8 +19,10 @@ var (
 )
 
 type cursorProviderFactory struct {
-	def        AgentDef
-	storeIndex *cursorStoreIndex
+	def                  AgentDef
+	storeIndex           *cursorStoreIndex
+	maxTranscriptSize    int64
+	maxTranscriptSizeSet bool
 }
 
 func newCursorProviderFactory(def AgentDef) ProviderFactory {
@@ -28,6 +30,13 @@ func newCursorProviderFactory(def AgentDef) ProviderFactory {
 		def:        cloneAgentDef(def),
 		storeIndex: newCursorStoreIndex(),
 	}
+}
+
+// SetMaxTranscriptSize overrides the default transcript size cap for
+// providers this factory creates. Zero means unlimited.
+func (f *cursorProviderFactory) SetMaxTranscriptSize(n int64) {
+	f.maxTranscriptSize = n
+	f.maxTranscriptSizeSet = true
 }
 
 func (f *cursorProviderFactory) Definition() AgentDef {
@@ -40,6 +49,10 @@ func (f *cursorProviderFactory) Capabilities() Capabilities {
 
 func (f *cursorProviderFactory) NewProvider(cfg ProviderConfig) Provider {
 	cfg = cfg.Clone()
+	if !cfg.MaxTranscriptSizeSet && f.maxTranscriptSizeSet {
+		cfg.MaxTranscriptSize = f.maxTranscriptSize
+		cfg.MaxTranscriptSizeSet = true
+	}
 	sources := newCursorSourceSetWithConfig(cfg)
 	sources.storeIndex = f.storeIndex
 	return &cursorProvider{
@@ -72,6 +85,10 @@ type cursorProvider struct {
 	ProviderBase
 	DefaultS3Provider
 	sources cursorSourceSet
+}
+
+func (p *cursorProvider) maxTranscriptSize() int64 {
+	return p.sources.maxTranscriptSize
 }
 
 func (p *cursorProvider) Discover(ctx context.Context) ([]SourceRef, error) {
@@ -197,13 +214,15 @@ type cursorSourceSet struct {
 	resolutionResolver func(string, CursorResolveMode, string) SourceCwdResolution
 	remote             bool
 	remoteRoots        map[string]bool
+	maxTranscriptSize  int64
 }
 
 func newCursorSourceSet(roots []string) cursorSourceSet {
 	return cursorSourceSet{
-		roots:       cleanJSONLRoots(roots),
-		storeIndex:  newCursorStoreIndex(),
-		remoteRoots: make(map[string]bool),
+		roots:             cleanJSONLRoots(roots),
+		storeIndex:        newCursorStoreIndex(),
+		remoteRoots:       make(map[string]bool),
+		maxTranscriptSize: DefaultMaxCursorTranscriptSize,
 	}
 }
 
@@ -215,6 +234,9 @@ func newCursorSourceSetWithConfig(cfg ProviderConfig) cursorSourceSet {
 		if machine != "" && machine != cfg.Machine {
 			s.remoteRoots[filepath.Clean(root)] = true
 		}
+	}
+	if cfg.MaxTranscriptSizeSet {
+		s.maxTranscriptSize = cfg.MaxTranscriptSize
 	}
 	return s
 }
@@ -925,7 +947,7 @@ func (s cursorSourceSet) Fingerprint(
 		return SourceFingerprint{}, fmt.Errorf("stat %s: source is a directory", path)
 	}
 	hash := ""
-	if info.Size() <= maxCursorTranscriptSize {
+	if s.maxTranscriptSize <= 0 || info.Size() <= s.maxTranscriptSize {
 		hash, err = hashJSONLSourceFile(path)
 		if err != nil {
 			return SourceFingerprint{}, err

@@ -362,25 +362,15 @@ func runServe(ctx context.Context, cfg config.Config, opts serveOptions, restart
 	var memoryRefresh *memoryRefreshQueue
 	if !cfg.NoSync {
 		var onStartupReconciled func(sync.SyncStats, error)
-		engine = sync.NewEngine(ctx, database, sync.EngineConfig{
-			AgentDirs:               cfg.AgentDirs,
-			SourceMachines:          cfg.SourceMachines,
-			ProviderMetadata:        cfg.ProviderMetadata,
-			DisabledAgents:          cfg.DisabledAgents,
-			IncludeCwdPrefixes:      cfg.SyncIncludeCwdPrefixes,
-			ScanProtectedPaths:      cfg.ScanProtectedPaths,
-			Machine:                 cfg.InstallationID,
-			BlockedResultCategories: cfg.ResultContentBlockedCategories,
-			ArchiveContent:          cfg.ArchiveContent,
-			FrictionEnabled:         cfg.Friction.Enabled,
-			Emitter:                 emitter,
-			DeferStartupMaintenance: deferStartupMaintenance(
-				opts.SkipInitialSync || startupRebuild, workerSyncDone,
-			),
-			OnStartupReconciled: func(stats sync.SyncStats, err error) {
-				onStartupReconciled(stats, err)
-			},
-		})
+		daemonCfg := baseEngineConfig(cfg)
+		daemonCfg.Emitter = emitter
+		daemonCfg.DeferStartupMaintenance = deferStartupMaintenance(
+			opts.SkipInitialSync || startupRebuild, workerSyncDone,
+		)
+		daemonCfg.OnStartupReconciled = func(stats sync.SyncStats, err error) {
+			onStartupReconciled(stats, err)
+		}
+		engine = sync.NewEngine(ctx, database, daemonCfg)
 		defer engine.Close()
 		if frictionReviews != nil {
 			frictionReviews.start(ctx, engine, idleTracker)

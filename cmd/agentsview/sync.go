@@ -911,6 +911,15 @@ func coordinateLocalSync(
 }
 
 func localSyncEngineConfig(appCfg config.Config) sync.EngineConfig {
+	return baseEngineConfig(appCfg)
+}
+
+// baseEngineConfig extracts the sync.EngineConfig fields every local
+// engine shares from the application config. Callsites that need extra
+// fields (Emitter, DeferStartupMaintenance, etc.) copy the result and
+// set them. Using this single helper ensures new per-provider config
+// (MaxTranscriptSizes, ToolResultImages, etc.) reaches every path.
+func baseEngineConfig(appCfg config.Config) sync.EngineConfig {
 	return sync.EngineConfig{
 		AgentDirs:               appCfg.AgentDirs,
 		SourceMachines:          appCfg.SourceMachines,
@@ -922,6 +931,7 @@ func localSyncEngineConfig(appCfg config.Config) sync.EngineConfig {
 		BlockedResultCategories: appCfg.ResultContentBlockedCategories,
 		ArchiveContent:          appCfg.ArchiveContent,
 		FrictionEnabled:         appCfg.Friction.Enabled,
+		MaxTranscriptSizes:      appCfg.MaxTranscriptSizes,
 	}
 }
 

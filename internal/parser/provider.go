@@ -80,6 +80,11 @@ type ProviderConfig struct {
 	// when that listing is safe; nil (the default, and every non-discovery
 	// construction) means listings stay full-fidelity.
 	SQLiteContainerListsWatermarkOnly func(dbPath string) bool
+	// MaxTranscriptSize overrides the per-provider default transcript size
+	// cap. Zero means unlimited. Use MaxTranscriptSizeSet to distinguish
+	// "not configured" from "explicitly set to 0 (unlimited)".
+	MaxTranscriptSize    int64
+	MaxTranscriptSizeSet bool
 }
 
 // Clone returns an independent config snapshot.

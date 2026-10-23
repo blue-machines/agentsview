@@ -561,6 +561,10 @@ type EngineConfig struct {
 	// parser package registry/manifest.
 	ProviderFactories      []parser.ProviderFactory
 	ProviderMigrationModes map[parser.AgentType]parser.ProviderMigrationMode
+	// MaxTranscriptSizes holds per-agent transcript size caps from config.
+	// Applied to provider factories at engine construction so every
+	// provider instance inherits the configured limit.
+	MaxTranscriptSizes map[parser.AgentType]int64
 }
 
 // Engine orchestrates session file discovery and sync.
@@ -948,6 +952,14 @@ func NewEngine(ctx context.Context,
 	providerFactories := parser.ProviderFactories()
 	if cfg.ProviderFactories != nil {
 		providerFactories = append([]parser.ProviderFactory(nil), cfg.ProviderFactories...)
+	}
+	for _, factory := range providerFactories {
+		agent := factory.Definition().Type
+		if limit, ok := cfg.MaxTranscriptSizes[agent]; ok {
+			if setter, supports := factory.(interface{ SetMaxTranscriptSize(int64) }); supports {
+				setter.SetMaxTranscriptSize(limit)
+			}
+		}
 	}
 	sourceSyncErr := database.RequireSourceSync(ctx)
 	if errors.Is(sourceSyncErr, db.ErrArchiveOnly) && cfg.ArchiveReparse {
