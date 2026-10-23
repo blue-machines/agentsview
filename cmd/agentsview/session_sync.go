@@ -74,16 +74,7 @@ func syncService(ctx context.Context,
 	if err != nil {
 		return nil, nil, fmt.Errorf("opening db: %w", err)
 	}
-	engine := sync.NewEngine(ctx, d, sync.EngineConfig{
-		AgentDirs:          cfg.AgentDirs,
-		SourceMachines:     cfg.SourceMachines,
-		ProviderMetadata:   cfg.ProviderMetadata,
-		DisabledAgents:     cfg.DisabledAgents,
-		IncludeCwdPrefixes: cfg.SyncIncludeCwdPrefixes,
-		ScanProtectedPaths: cfg.ScanProtectedPaths,
-		Machine:            cfg.InstallationID,
-		ArchiveContent:     cfg.ArchiveContent,
-	})
+	engine := sync.NewEngine(ctx, d, baseEngineConfig(cfg))
 	// Close the engine before the DB so pending debounced signal
 	// recomputes flush while the DB is still open.
 	cleanup := func() {

@@ -2740,3 +2740,26 @@ func TestRunRemoteSyncWithOmittedTransportReachesHTTPMirrorPath(t *testing.T) {
 	assert.Equal(t, 1, manifestRequests,
 		"configured DataDir must route HTTP sync through the manifest/mirror path")
 }
+
+func TestBaseEngineConfigPropagatesMaxTranscriptSizes(t *testing.T) {
+	cfg, err := config.Default()
+	require.NoError(t, err)
+	cfg.MaxTranscriptSizes = map[parser.AgentType]int64{
+		parser.AgentCursor: 0,
+	}
+	ec := baseEngineConfig(cfg)
+	require.Contains(t, ec.MaxTranscriptSizes, parser.AgentCursor)
+	assert.Equal(t, int64(0), ec.MaxTranscriptSizes[parser.AgentCursor],
+		"baseEngineConfig must propagate MaxTranscriptSizes so no-daemon sync honors the configured limit")
+}
+
+func TestBaseEngineConfigUsedByLocalSync(t *testing.T) {
+	cfg, err := config.Default()
+	require.NoError(t, err)
+	cfg.MaxTranscriptSizes = map[parser.AgentType]int64{
+		parser.AgentCursor: 42,
+	}
+	ec := localSyncEngineConfig(cfg)
+	require.Contains(t, ec.MaxTranscriptSizes, parser.AgentCursor)
+	assert.Equal(t, int64(42), ec.MaxTranscriptSizes[parser.AgentCursor])
+}

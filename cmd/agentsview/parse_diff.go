@@ -127,17 +127,7 @@ func doParseDiff(ctx context.Context, cfg ParseDiffConfig) (failed bool) {
 	database, writeLock := mustOpenWriteDB(ctx, appCfg)
 	defer closeWriteDB(database, writeLock)
 
-	engine := sync.NewDiffEngine(ctx, database, sync.EngineConfig{
-		AgentDirs:               appCfg.AgentDirs,
-		SourceMachines:          appCfg.SourceMachines,
-		ProviderMetadata:        appCfg.ProviderMetadata,
-		DisabledAgents:          appCfg.DisabledAgents,
-		IncludeCwdPrefixes:      appCfg.SyncIncludeCwdPrefixes,
-		ScanProtectedPaths:      appCfg.ScanProtectedPaths,
-		Machine:                 appCfg.InstallationID,
-		BlockedResultCategories: appCfg.ResultContentBlockedCategories,
-		ArchiveContent:          appCfg.ArchiveContent,
-	})
+	engine := sync.NewDiffEngine(ctx, database, baseEngineConfig(appCfg))
 
 	opts := sync.ParseDiffOptions{Agents: agents, Limit: cfg.Limit}
 	if !cfg.JSON && isTerminalWriter(cfg.stderr()) {

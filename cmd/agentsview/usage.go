@@ -434,17 +434,7 @@ func ensureFreshData(
 	defer log.SetOutput(origLog)
 
 	if database.NeedsResync() {
-		engine := sync.NewEngine(ctx, database, sync.EngineConfig{
-			AgentDirs:          appCfg.AgentDirs,
-			SourceMachines:     appCfg.SourceMachines,
-			ProviderMetadata:   appCfg.ProviderMetadata,
-			DisabledAgents:     appCfg.DisabledAgents,
-			IncludeCwdPrefixes: appCfg.SyncIncludeCwdPrefixes,
-			ScanProtectedPaths: appCfg.ScanProtectedPaths,
-			Machine:            appCfg.InstallationID,
-			ArchiveContent:     appCfg.ArchiveContent,
-			MaxTranscriptSizes: appCfg.MaxTranscriptSizes,
-		})
+		engine := sync.NewEngine(ctx, database, baseEngineConfig(appCfg))
 		defer engine.Close()
 		fmt.Fprintln(os.Stderr,
 			"Data version changed, running full resync...")
@@ -464,17 +454,7 @@ func ensureFreshData(
 		return
 	}
 
-	engine := sync.NewEngine(ctx, database, sync.EngineConfig{
-		AgentDirs:          appCfg.AgentDirs,
-		SourceMachines:     appCfg.SourceMachines,
-		ProviderMetadata:   appCfg.ProviderMetadata,
-		DisabledAgents:     appCfg.DisabledAgents,
-		IncludeCwdPrefixes: appCfg.SyncIncludeCwdPrefixes,
-		ScanProtectedPaths: appCfg.ScanProtectedPaths,
-		Machine:            appCfg.InstallationID,
-		ArchiveContent:     appCfg.ArchiveContent,
-		MaxTranscriptSizes: appCfg.MaxTranscriptSizes,
-	})
+	engine := sync.NewEngine(ctx, database, baseEngineConfig(appCfg))
 	defer engine.Close()
 
 	since := engine.LastSyncStartedAt(ctx)

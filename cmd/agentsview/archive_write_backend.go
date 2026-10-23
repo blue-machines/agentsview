@@ -1117,19 +1117,9 @@ func (b *localArchiveWriteBackend) startWatchEngine(
 		warnMissingDirs(b.appCfg.ResolveDirs(def.Type), string(def.Type))
 	}
 	cleanResyncTemp(b.appCfg.DBPath)
-	return syncpkg.NewEngine(ctx, b.database, syncpkg.EngineConfig{
-		Emitter:                 emitter,
-		AgentDirs:               b.appCfg.AgentDirs,
-		SourceMachines:          b.appCfg.SourceMachines,
-		ProviderMetadata:        b.appCfg.ProviderMetadata,
-		DisabledAgents:          b.appCfg.DisabledAgents,
-		IncludeCwdPrefixes:      b.appCfg.SyncIncludeCwdPrefixes,
-		ScanProtectedPaths:      b.appCfg.ScanProtectedPaths,
-		Machine:                 b.appCfg.InstallationID,
-		BlockedResultCategories: b.appCfg.ResultContentBlockedCategories,
-		ArchiveContent:          b.appCfg.ArchiveContent,
-		FrictionEnabled:         b.appCfg.Friction.Enabled,
-	}), nil
+	watchCfg := baseEngineConfig(b.appCfg)
+	watchCfg.Emitter = emitter
+	return syncpkg.NewEngine(ctx, b.database, watchCfg), nil
 }
 
 // ignoreWatchBatch adapts a local owner's pusher to the watch loop. A local

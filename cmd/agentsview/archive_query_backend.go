@@ -333,17 +333,7 @@ func (b localArchiveQueryBackend) SessionUsage(
 	stale := b.database.NeedsResync()
 	refreshIncomplete := stale && !b.skipFreshData && !query.NoSync
 	if known && !b.skipFreshData && !query.NoSync && !stale {
-		engine := sync.NewEngine(ctx, b.database, sync.EngineConfig{
-			AgentDirs:               b.cfg.AgentDirs,
-			SourceMachines:          b.cfg.SourceMachines,
-			ProviderMetadata:        b.cfg.ProviderMetadata,
-			DisabledAgents:          b.cfg.DisabledAgents,
-			IncludeCwdPrefixes:      b.cfg.SyncIncludeCwdPrefixes,
-			ScanProtectedPaths:      b.cfg.ScanProtectedPaths,
-			Machine:                 b.cfg.InstallationID,
-			BlockedResultCategories: b.cfg.ResultContentBlockedCategories,
-			ArchiveContent:          b.cfg.ArchiveContent,
-		})
+		engine := sync.NewEngine(ctx, b.database, baseEngineConfig(b.cfg))
 		var syncErr error
 		if query.OwnOnly {
 			syncErr = engine.SyncSingleSessionContext(ctx, resolvedID)
